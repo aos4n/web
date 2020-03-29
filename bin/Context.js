@@ -71,10 +71,10 @@ class Context {
         let bodyType = typeof body;
         if (bodyType === 'string') {
             if (/^\s*</.test(body)) {
-                res.setHeader('Content-Type', 'text/html');
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
             }
             else {
-                res.setHeader('Content-Type', 'text/plain');
+                res.setHeader('Content-Type', 'text/plain; charset=utf-8');
             }
             return res.end(body);
         }
