@@ -7,7 +7,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
  */
 function Mapping(type = 'get', path = null) {
     return function (target, name) {
-        let $routes = Reflect.getMetadata('$routes', target, name) || [];
+        let $actionMap = Reflect.getMetadata('$actionMap', target) || new Map();
+        let $routes = $actionMap.get(name) || [];
         let _type = type.toLowerCase();
         let _path = '';
         if (path == null) {
@@ -20,7 +21,8 @@ function Mapping(type = 'get', path = null) {
             type: _type,
             path: _path
         });
-        Reflect.defineMetadata('$routes', $routes, target, name);
+        $actionMap.set(name, $routes);
+        Reflect.defineMetadata('$actionMap', $actionMap, target);
     };
 }
 exports.Mapping = Mapping;

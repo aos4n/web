@@ -68,26 +68,24 @@ export class Application {
     }
 
     private checkControllerClass(_Class: new (...args: any[]) => {}) {
+        let $actionMap: Map<string, { type: string, path: string }[]> = Reflect.getMetadata('$actionMap', _Class.prototype)
+        if ($actionMap == null) {
+            return
+        }
         let controllerPath = Reflect.getMetadata('$path', _Class.prototype)
         let router = new Router({ prefix: controllerPath })
-        Object.getOwnPropertyNames(_Class.prototype).forEach(a => {
-            let routes = this.checkAndHandleActionName(a, _Class)
-            routes.forEach(b => {
-                if (typeof router[b.type] === 'function') {
-                    router[b.type](b.path, b.handler)
-                }
+        $actionMap.forEach((v, k) => {
+            let handler = this.getHandler(k, _Class)
+            v.forEach(b => {
+                router[b.type](b.path, handler)
             })
         })
 
         this.app.use(router.routes())
     }
 
-    private checkAndHandleActionName(actionName: string, _Class: new (...args: any[]) => {}) {
+    private getHandler(actionName: string, _Class: new (...args: any[]) => {}) {
         let _prototype = _Class.prototype
-        let $routes: { type: string, path: string }[] = Reflect.getMetadata('$routes', _prototype, actionName)
-        if (!$routes) {
-            return []
-        }
         let handler = async (ctx: Koa.Context) => {
             try {
                 await this.handleContext(actionName, _Class, ctx)
@@ -99,13 +97,7 @@ export class Application {
                 await this.handlerException(exceptionFilter, handlerName, err, ctx)
             }
         }
-        return $routes.map(a => {
-            return {
-                type: a.type,
-                path: a.path,
-                handler
-            }
-        })
+        return handler
     }
 
     private getExceptionFilterAndHandlerName(_prototype: any, actionName: string, errConstructor: any, ctx: Koa.Context): [new (...args: any[]) => {}, string] {

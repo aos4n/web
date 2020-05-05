@@ -73,24 +73,22 @@ let Application = class Application {
         }));
     }
     checkControllerClass(_Class) {
+        let $actionMap = Reflect.getMetadata('$actionMap', _Class.prototype);
+        if ($actionMap == null) {
+            return;
+        }
         let controllerPath = Reflect.getMetadata('$path', _Class.prototype);
         let router = new Router({ prefix: controllerPath });
-        Object.getOwnPropertyNames(_Class.prototype).forEach(a => {
-            let routes = this.checkAndHandleActionName(a, _Class);
-            routes.forEach(b => {
-                if (typeof router[b.type] === 'function') {
-                    router[b.type](b.path, b.handler);
-                }
+        $actionMap.forEach((v, k) => {
+            let handler = this.getHandler(k, _Class);
+            v.forEach(b => {
+                router[b.type](b.path, handler);
             });
         });
         this.app.use(router.routes());
     }
-    checkAndHandleActionName(actionName, _Class) {
+    getHandler(actionName, _Class) {
         let _prototype = _Class.prototype;
-        let $routes = Reflect.getMetadata('$routes', _prototype, actionName);
-        if (!$routes) {
-            return [];
-        }
         let handler = (ctx) => __awaiter(this, void 0, void 0, function* () {
             try {
                 yield this.handleContext(actionName, _Class, ctx);
@@ -103,13 +101,7 @@ let Application = class Application {
                 yield this.handlerException(exceptionFilter, handlerName, err, ctx);
             }
         });
-        return $routes.map(a => {
-            return {
-                type: a.type,
-                path: a.path,
-                handler
-            };
-        });
+        return handler;
     }
     getExceptionFilterAndHandlerName(_prototype, actionName, errConstructor, ctx) {
         let filtersOnAction = Reflect.getMetadata('$exceptionFilters', _prototype, actionName) || [];

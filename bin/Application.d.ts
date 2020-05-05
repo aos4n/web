@@ -16,7 +16,7 @@ export declare class Application {
     private init;
     private build;
     private checkControllerClass;
-    private checkAndHandleActionName;
+    private getHandler;
     private getExceptionFilterAndHandlerName;
     private handleContext;
     private getFilterAndInstances;

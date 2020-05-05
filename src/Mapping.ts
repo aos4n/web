@@ -5,7 +5,8 @@
  */
 export function Mapping(type: string = 'get', path: string = null) {
     return function (target: any, name: string) {
-        let $routes = Reflect.getMetadata('$routes', target, name) || []
+        let $actionMap: Map<string, { type: string, path: string }[]> = Reflect.getMetadata('$actionMap', target) || new Map()
+        let $routes = $actionMap.get(name) || []
 
         let _type = type.toLowerCase()
 
@@ -20,7 +21,8 @@ export function Mapping(type: string = 'get', path: string = null) {
             type: _type,
             path: _path
         })
-        Reflect.defineMetadata('$routes', $routes, target, name)
+        $actionMap.set(name, $routes)
+        Reflect.defineMetadata('$actionMap', $actionMap, target)
     }
 }
 
