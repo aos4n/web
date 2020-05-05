@@ -262,7 +262,7 @@ export function MyValidator(errorMesage: string = null) {
     })
 }
 ```
-## GlobalActionFilter
+## @GlobalActionFilter
 标记此类为全局请求过滤器，此类将会被aos4n自动扫描到并且应用到所有的控制器以及其Action
 ```typescript
 @GlobalActionFilter({ order: 2, match: /^\/home2/i })
@@ -273,7 +273,7 @@ export class MyGlobalActionFilter3 {
     }
 }
 ```
-## ActionFilter
+## @ActionFilter
 标记此类为局部请求过滤器，除非被显式使用（@UseActionFilter），否则不会生效，可以作用于Controller以及Action
 ```typescript
 @ActionFilter
@@ -302,7 +302,7 @@ export class Home1Controller {
     }
 }
 ```
-## GlobalExceptionFilter
+## @GlobalExceptionFilter
 标记此类为全局异常过滤器，此类将会被aos4n自动扫描到并且应用到所有的控制器以及其Action
 ```typescript
 @GlobalExceptionFilter({ match: /^\/home1/i })
@@ -313,7 +313,7 @@ export class MyGlobalExceptionFilter5 {
     }
 }
 ```
-## ExceptionFilter
+## @ExceptionFilter
 标记此类为局部请求过滤器，除非被显式使用（@UseExceptionFilter），否则不会生效，可以作用于Controller以及Action
 ```typescript
 @ExceptionFilter

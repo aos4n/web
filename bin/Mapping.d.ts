@@ -1,5 +1,5 @@
 /**
- * 映射此方法为Action，一个方法允许同时使用多个Mapping标记，用于支持多种method
+ * 映射此方法为Action，一个方法允许同时使用多个Mapping标记
  * @param type method类型，默认为get
  * @param path 映射到的路由，默认为/ + action名称
  */
