@@ -1,76 +1,44 @@
-import { DIContainer, Init, InnerCachable, StartUp, Utils as CoreUtils } from 'aos4n-core';
+import { DIContainer, Init, StartUp, Utils as CoreUtils } from 'aos4n-core';
 
 import { ActionFilterContext } from './ActionFilterContext';
 import {
     Controller, DoAfter, DoBefore, GlobalActionFilter, GlobalExceptionFilter
 } from './Component';
-import { Context } from './Context';
 import { LazyResult } from './LazyResult';
 import { NotFoundException } from './NotFoundException';
 import { Options } from './Options';
-import { Route } from './Route';
 import { Utils } from './Utils';
 
-import formidable = require('formidable');
-
+import Koa = require('koa');
+import koaBody = require('koa-body');
+import koaStatic = require('koa-static');
 import http = require('http');
+import cors = require('koa2-cors');
+import path = require('path');
+import Router = require('koa-router');
 /**
  * web应用，这是一个启动StartUp组件，使用方法：getContainer().loadClass(Application)
  */
 @StartUp()
 export class Application {
+    app = new Koa()
     server: http.Server
-    private routeMap: Map<string, Map<string, Route>>
+    globalActionFilters: (new (...args: any[]) => {})[]
 
     constructor(private readonly opts: Options, private readonly container: DIContainer) { }
 
     @Init
     private async init() {
-        this.routeMap = new Map()
-
         this.build()
-        this.server = http.createServer(async (req, res) => {
-            res.statusCode = 404
-            let ctx = new Context(req, res)
-            let url = req.url
-            let urlArr = url.split('#')[0].split('?')[0].replace(/^\//, '').split('/')
-            let controllerPath = urlArr[0] || 'home'
-            let actionPath = urlArr[1] || 'index'
-            let method = req.method
-            let route = this.routeMap.get(controllerPath)?.get(actionPath)
-            if (route != null) {
-                if (route.method == 'ALL' || route.method == method) {
-                    if (new Set(['POST', 'PUT', 'PATCH']).has(method)) {
-                        await new Promise((resolve, reject) => {
-                            let form = new formidable.IncomingForm()
-                            form.parse(req, (err, fields, files) => {
-                                if (err) {
-                                    reject(err)
-                                }
-                                ctx.reqBody = fields
-                                ctx.files = files
-                                resolve()
-                            })
-                        })
-                    }
-                    route.handler(ctx)
-                    return
-                }
-            }
-            let bl = await this.notFoundExceptionHandler(ctx)
-            if (bl == false) {
-                res.end('Not found')
-            }
-        })
-
-        await this.initControllers()
-        await this.initFilters()
 
         let port = this.opts.port
         if (process.env.aos4nWebPort) {
             port = Number.parseInt(process.env.aos4nWebPort)
         }
-        this.server.listen(port)
+        this.server = this.app.listen(port)
+
+        await this.initControllers()
+        await this.initFilters()
 
         let endTime = Date.now()
         let nowStr = CoreUtils.formatDate(new Date(), 'yyyy-MM-dd HH:mm:ss')
@@ -78,59 +46,80 @@ export class Application {
     }
 
     private build() {
+        if (this.opts.enableStatic) {
+            let publicRootPath = path.join(CoreUtils.getAppRootPath(), 'public')
+            this.app.use(koaStatic(publicRootPath))
+        }
+
+        if (this.opts.enableCors) {
+            this.app.use(cors(this.opts.corsOptions))
+        }
+
+        this.app.use(koaBody(this.opts.koaBodyOptions))
+
         let controllerList = this.container.getComponentsByDecorator(Controller)
         for (let controllerClass of controllerList) {
             this.checkControllerClass(controllerClass)
         }
+
+        this.app.use(async ctx => {
+            await this.notFoundExceptionHandler(ctx)
+        })
     }
 
     private checkControllerClass(_Class: new (...args: any[]) => {}) {
-        let controllerPath = _Class.name.replace(/Controller$/i, '').toLowerCase()
-        if (this.routeMap.has(controllerPath)) {
-            return
-        }
-        let map: Map<string, Route> = new Map()
+        let controllerPath = Reflect.getMetadata('$path', _Class.prototype)
+        let router = new Router({ prefix: controllerPath })
         Object.getOwnPropertyNames(_Class.prototype).forEach(a => {
-            this.checkAndHandleActionName(a, _Class, map)
+            let routes = this.checkAndHandleActionName(a, _Class)
+            routes.forEach(b => {
+                if (typeof router[b.type] === 'function') {
+                    router[b.type](b.path, b.handler)
+                }
+            })
         })
-        if (map.size) {
-            this.routeMap.set(controllerPath, map)
-        }
+
+        this.app.use(router.routes())
     }
 
-    private checkAndHandleActionName(actionName: string, _Class: new (...args: any[]) => {}, map: Map<string, Route>) {
+    private checkAndHandleActionName(actionName: string, _Class: new (...args: any[]) => {}) {
         let _prototype = _Class.prototype
-        let $method = Reflect.getMetadata('$method', _prototype, actionName)
-        if (!$method) {
-            return
+        let $routes: { type: string, path: string }[] = Reflect.getMetadata('$routes', _prototype, actionName)
+        if (!$routes) {
+            return []
         }
-        let route = new Route()
-        route.method = $method
-        route.handler = async (ctx: Context) => {
+        let handler = async (ctx: Koa.Context) => {
             try {
                 await this.handleContext(actionName, _Class, ctx)
             } catch (err) {
-                let [exceptionFilter, handlerName] = this.getExceptionFilterAndHandlerName(_prototype, actionName, err.constructor)
+                let [exceptionFilter, handlerName] = this.getExceptionFilterAndHandlerName(_prototype, actionName, err.constructor, ctx)
                 if (!handlerName) {
-                    ctx.res.statusCode = 500
-                    ctx.res.end(err.stack || err)
+                    throw err
                 }
-                try {
-                    await this.handlerException(exceptionFilter, handlerName, err, ctx)
-                } catch (err1) {
-                    ctx.res.statusCode = 500
-                    ctx.res.end(err1.stack || err1)
-                }
+                await this.handlerException(exceptionFilter, handlerName, err, ctx)
             }
         }
-        map.set(actionName.toLowerCase(), route)
+        return $routes.map(a => {
+            return {
+                type: a.type,
+                path: a.path,
+                handler
+            }
+        })
     }
 
-    @InnerCachable({ keys: [[0, ''], [1, ''], [2, ''], [3, '']] })
-    private getExceptionFilterAndHandlerName(_prototype: any, actionName: string, errConstructor: any): [new (...args: any[]) => {}, string] {
-        let filtersOnController = Reflect.getMetadata('$exceptionFilters', _prototype) || []
+    private getExceptionFilterAndHandlerName(_prototype: any, actionName: string, errConstructor: any, ctx: Koa.Context): [new (...args: any[]) => {}, string] {
         let filtersOnAction = Reflect.getMetadata('$exceptionFilters', _prototype, actionName) || []
-        let filters = this.container.getComponentsByDecorator(GlobalExceptionFilter).concat(filtersOnController, filtersOnAction).reverse()
+        let filtersOnController = Reflect.getMetadata('$exceptionFilters', _prototype) || []
+        let globalExceptionFilters = this.container.getComponentsByDecorator(GlobalExceptionFilter)
+            .filter(a => {
+                let reg = Reflect.getMetadata('$match', a.prototype) as RegExp
+                if (reg == null) {
+                    return true
+                }
+                return reg.test(ctx.url)
+            })
+        let filters = filtersOnAction.concat(filtersOnController, globalExceptionFilters)
 
         let [exceptionFilter, handlerName] = this.getExceptionHandlerName(errConstructor, filters)
         if (!handlerName) {
@@ -140,7 +129,7 @@ export class Application {
         return [exceptionFilter, handlerName]
     }
 
-    private async handleContext(actionName: string, _Class: new (...args: any[]) => {}, ctx: Context) {
+    private async handleContext(actionName: string, _Class: new (...args: any[]) => {}, ctx: Koa.Context) {
         let _prototype = _Class.prototype
         let instance = await this.container.getComponentInstanceFromFactory(_prototype.constructor)
         let $params = Reflect.getMetadata('$params', _prototype, actionName) || []//使用@Bind...注册的参数，没有使用@Bind...装饰的参数将保持为null
@@ -177,21 +166,21 @@ export class Application {
         }
         let actionFilterContext = new ActionFilterContext(ctx, params, $paramTypes, _Class, actionName)
 
-        let filterAndInstances = await this.getFilterAndInstances(_prototype, actionName)
+        let filterAndInstances = await this.getFilterAndInstances(_prototype, actionName, ctx)
         for (let [filter, filterInstance] of filterAndInstances) {
             let handlerName = Reflect.getMetadata('$actionHandlerMap', filter.prototype).get(DoBefore)
             if (!handlerName) {
                 continue
             }
             await filterInstance[handlerName](actionFilterContext)
-            if (ctx.res.statusCode != 404) {
+            if (ctx.status != 404) {
                 break
             }
         }
 
-        if (ctx.res.statusCode == 404) {
+        if (ctx.status == 404) {
             let body = await instance[actionName](...params)
-            if (ctx.res.statusCode == 404) {
+            if (ctx.status == 404) {
                 if (body instanceof LazyResult) {
                     ctx.state.LazyResult = body
                 } else {
@@ -200,7 +189,8 @@ export class Application {
             }
         }
 
-        for (let [filter, filterInstance] of filterAndInstances.reverse()) {
+        for (let i = filterAndInstances.length - 1; i >= 0; i--) {
+            let [filter, filterInstance] = filterAndInstances[i]
             let handlerName = Reflect.getMetadata('$actionHandlerMap', filter.prototype).get(DoAfter)
             if (!handlerName) {
                 continue
@@ -209,12 +199,18 @@ export class Application {
         }
     }
 
-    @InnerCachable({ keys: [[0, ''], [1, ''], [2, '']] })
-    private async getFilterAndInstances(_prototype: any, actionName: string) {
-        let filtersOnController = Reflect.getMetadata('$actionFilters', _prototype) || []
+    private async getFilterAndInstances(_prototype: any, actionName: string, ctx: Koa.Context) {
         let filtersOnAction = Reflect.getMetadata('$actionFilters', _prototype, actionName) || []
-        let globalActionFilters = this.container.getComponentsByDecorator(GlobalActionFilter)
-        let filters = globalActionFilters.concat(filtersOnController, filtersOnAction)
+        let filtersOnController = Reflect.getMetadata('$actionFilters', _prototype) || []
+        let globalActionFilters = this.globalActionFilters
+            .filter(a => {
+                let reg = Reflect.getMetadata('$match', a.prototype) as RegExp
+                if (reg == null) {
+                    return true
+                }
+                return reg.test(ctx.url)
+            })
+        let filters = filtersOnAction.concat(filtersOnController, globalActionFilters)
         let filterAndInstances: [new (...args: any[]) => {}, any][] = []
         for (let filter of filters) {
             let filterInstance = await this.container.getComponentInstanceFromFactory(filter)
@@ -234,7 +230,7 @@ export class Application {
         return []
     }
 
-    private async handlerException(exceptionFilter: new (...args: any[]) => {}, handlerName: string, err: any, ctx: Context) {
+    private async handlerException(exceptionFilter: new (...args: any[]) => {}, handlerName: string, err: any, ctx: Koa.Context) {
         let exceptionFilterInstance = await this.container.getComponentInstanceFromFactory(exceptionFilter)
         await exceptionFilterInstance[handlerName](ctx, err)
     }
@@ -247,7 +243,7 @@ export class Application {
     }
 
     private async initFilters() {
-        let globalActionFilters = this.container.getComponentsByDecorator(GlobalActionFilter).sort((a, b) => Reflect.getMetadata('$order', b.prototype) - Reflect.getMetadata('$order', a.prototype))
+        let globalActionFilters = this.container.getComponentsByDecorator(GlobalActionFilter)
         let globalExceptionFilters = this.container.getComponentsByDecorator(GlobalExceptionFilter)
         for (let filter of globalActionFilters) {
             await this.container.getComponentInstanceFromFactory(filter)
@@ -255,15 +251,22 @@ export class Application {
         for (let filter of globalExceptionFilters) {
             await this.container.getComponentInstanceFromFactory(filter)
         }
+        this.globalActionFilters = globalActionFilters.sort((a, b) => Reflect.getMetadata('$order', b.prototype) - Reflect.getMetadata('$order', a.prototype))
     }
 
-    private async notFoundExceptionHandler(ctx: Context) {
+    private async notFoundExceptionHandler(ctx: Koa.Context) {
         let globalExceptionFilters = this.container.getComponentsByDecorator(GlobalExceptionFilter)
+            .filter(a => {
+                let reg = Reflect.getMetadata('$match', a.prototype) as RegExp
+                if (reg == null) {
+                    return true
+                }
+                return reg.test(ctx.url)
+            })
         let [exceptionFilter, handlerName] = this.getExceptionHandlerName(NotFoundException, globalExceptionFilters)
         if (!handlerName) {
-            return false
+            return
         }
         await this.handlerException(exceptionFilter, handlerName, new NotFoundException(), ctx)
-        return true
     }
 }

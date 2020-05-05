@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { DIContainer } from 'aos4n-core';
 import { Options } from './Options';
+import Koa = require('koa');
 import http = require('http');
 /**
  * web应用，这是一个启动StartUp组件，使用方法：getContainer().loadClass(Application)
@@ -8,8 +9,9 @@ import http = require('http');
 export declare class Application {
     private readonly opts;
     private readonly container;
+    app: Koa<Koa.DefaultState, Koa.DefaultContext>;
     server: http.Server;
-    private routeMap;
+    globalActionFilters: (new (...args: any[]) => {})[];
     constructor(opts: Options, container: DIContainer);
     private init;
     private build;

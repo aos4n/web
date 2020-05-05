@@ -4,36 +4,46 @@ import { Utils } from 'aos4n-core';
  * 指定此类为控制器
  * Controller是一种特殊的Component
  */
-export function Controller(target: new (...args: any[]) => {}) {
-    Reflect.defineMetadata(Controller, true, target.prototype)
-    Utils.markAsComponent(target)
+export function Controller(path: string = null) {
+    return function (target: new (...args: any[]) => {}) {
+        let $path = ''
+        if (path == null) {
+            $path = '/' + target.name.replace(/Controller$/i, '')
+        } else {
+            $path = path
+        }
+        Reflect.defineMetadata('$path', $path, target.prototype)
+        Reflect.defineMetadata(Controller, true, target.prototype)
+        Utils.markAsComponent(target)
+    }
 }
 
 /**
  * 标记此类为全局请求过滤器，此类将会被aos4n自动扫描到并且应用到所有的控制器以及其Action
  * 请求过滤器执行顺序为：
- *     1、低优先级ActionFilter.DoBefore
- *     2、高优先级ActionFilter.DoBefore
+ *     1、高优先级ActionFilter.DoBefore
+ *     2、低优先级ActionFilter.DoBefore
  *     3、Controller.Action
- *     4、高优先级ActionFilter.DoAfter
- *     5、低优先级ActionFilter.DoAfter
+ *     4、低优先级ActionFilter.DoAfter
+ *     5、高优先级ActionFilter.DoAfter
  * 任何DoBefore导致ctx.status != 404都将阻止后续步骤的执行，但是Controller.Action执行成功后后续的DoAfter都会执行
  * ActionFilter是一种特殊的Component
- * @param opts order：优先级，值越大优先级越高
+ * @param opts order：优先级，值越大优先级越高, match：正则匹配，如果指定了此参数，那么此过滤器只会针对ctx.url匹配此正则的请求生效
  */
-export function GlobalActionFilter(opts?: { order?: number }) {
+export function GlobalActionFilter(opts?: { order?: number, match?: RegExp }) {
     return function (target: new (...args: any[]) => {}) {
         opts = opts || {}
         opts.order = opts.order ?? 0
         Reflect.defineMetadata(GlobalActionFilter, true, target.prototype)
         Reflect.defineMetadata('$order', opts.order, target.prototype)
+        Reflect.defineMetadata('$match', opts.match, target.prototype)
         Utils.markAsComponent(target)
     }
 }
 
 /**
  * 标记此类为局部请求过滤器，除非被显式使用，否则不会生效，可以作用于Controller以及Action
- * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，靠前的优先级更高
+ * 该过滤器优先级高于全局，一个Controller或者Action同时使用多个局部过滤器时，靠近目标的优先级更高
  * 配合UseActionFilter来使用
  */
 export function ActionFilter(target: new (...args: any[]) => {}) {
@@ -43,12 +53,17 @@ export function ActionFilter(target: new (...args: any[]) => {}) {
 
 /**
  * 标记此类为全局异常过滤器，此类将会被aos4n自动扫描到并且应用到所有的控制器以及其Action
- * 注意，ExceptionFilter的顺序没有明确规定，只能被一个处理器匹配到
+ * 注意，ExceptionFilter的没有，一个异常只能被一个处理器处理
  * ExceptionFilter是一种特殊的Component
+ * match：正则匹配，如果指定了此参数，那么此过滤器只会针对ctx.url匹配此正则的请求生效
  */
-export function GlobalExceptionFilter(target: new (...args: any[]) => {}) {
-    Reflect.defineMetadata(GlobalExceptionFilter, true, target.prototype)
-    Utils.markAsComponent(target)
+export function GlobalExceptionFilter(opts?: { match?: RegExp }) {
+    return function (target: new (...args: any[]) => {}) {
+        opts = opts || {}
+        Reflect.defineMetadata(GlobalExceptionFilter, true, target.prototype)
+        Reflect.defineMetadata('$match', opts.match, target.prototype)
+        Utils.markAsComponent(target)
+    }
 }
 
 /**
@@ -74,11 +89,11 @@ export function UseActionFilter(actionFilter: new (...args: any[]) => {}) {
         }
         if (name == null) {
             let $actionFilters = Reflect.getMetadata('$actionFilters', target.prototype) || []
-            $actionFilters.unshift(actionFilter)
+            $actionFilters.push(actionFilter)
             Reflect.defineMetadata('$actionFilters', $actionFilters, target.prototype)
         } else {
             let $actionFilters = Reflect.getMetadata('$actionFilters', target, name) || []
-            $actionFilters.unshift(actionFilter)
+            $actionFilters.push(actionFilter)
             Reflect.defineMetadata('$actionFilters', $actionFilters, target, name)
         }
     }
@@ -115,11 +130,11 @@ export function UseExceptionFilter(exceptionFilter: new (...args: any[]) => {}) 
         }
         if (name == null) {
             let $exceptionFilters = Reflect.getMetadata('$exceptionFilters', target.prototype) || []
-            $exceptionFilters.unshift(exceptionFilter)
+            $exceptionFilters.push(exceptionFilter)
             Reflect.defineMetadata('$exceptionFilters', $exceptionFilters, target.prototype)
         } else {
             let $exceptionFilters = Reflect.getMetadata('$exceptionFilters', target, name) || []
-            $exceptionFilters.unshift(exceptionFilter)
+            $exceptionFilters.push(exceptionFilter)
             Reflect.defineMetadata('$exceptionFilters', $exceptionFilters, target, name)
         }
     }

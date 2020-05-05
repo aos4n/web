@@ -1,62 +1,83 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 /**
- * 映射此方法为Action
- * @param type method类型，默认为GET
+ * 映射此方法为Action，一个方法允许同时使用多个Mapping标记，用于支持多种method
+ * @param type method类型，默认为get
+ * @param path 映射到的路由，默认为/ + action名称
  */
-function Mapping(type = 'GET') {
+function Mapping(type = 'get', path = null) {
     return function (target, name) {
-        Reflect.defineMetadata('$method', type.toUpperCase(), target, name);
+        let $routes = Reflect.getMetadata('$routes', target, name) || [];
+        let _type = type.toLowerCase();
+        let _path = '';
+        if (path == null) {
+            _path = '/' + name;
+        }
+        else {
+            _path = path;
+        }
+        $routes.push({
+            type: _type,
+            path: _path
+        });
+        Reflect.defineMetadata('$routes', $routes, target, name);
     };
 }
 exports.Mapping = Mapping;
 /**
- * 映射此方法为Action，允许所有类型的method
+ * 映射此方法为Action，允许所有类型的method请求
+ * @param path 映射到的路由，默认为action名称
  */
-function AllMapping(target, name) {
-    Reflect.defineMetadata('$method', 'ALL', target, name);
+function AllMapping(path = null) {
+    return Mapping('all', path);
 }
 exports.AllMapping = AllMapping;
 /**
- * 映射此方法为Action，只允许GET请求
+ * 映射此方法为Action，只允许get请求
+ * @param path 映射到的路由，默认为action名称
  */
-function GetMapping(target, name) {
-    Reflect.defineMetadata('$method', 'GET', target, name);
+function GetMapping(path = null) {
+    return Mapping('get', path);
 }
 exports.GetMapping = GetMapping;
 /**
- * 映射此方法为Action，只允许POST请求
+ * 映射此方法为Action，只允许post请求
+ * @param path 映射到的路由，默认为action名称
  */
-function PostMapping(target, name) {
-    Reflect.defineMetadata('$method', 'POST', target, name);
+function PostMapping(path = null) {
+    return Mapping('post', path);
 }
 exports.PostMapping = PostMapping;
 /**
- * 映射此方法为Action，只允许PUT请求
+ * 映射此方法为Action，只允许put请求
+ * @param path 映射到的路由，默认为action名称
  */
-function PutMapping(target, name) {
-    Reflect.defineMetadata('$method', 'PUT', target, name);
+function PutMapping(path = null) {
+    return Mapping('put', path);
 }
 exports.PutMapping = PutMapping;
 /**
- * 映射此方法为Action，只允许PATCH请求
+ * 映射此方法为Action，只允许patch请求
+ * @param path 映射到的路由，默认为action名称
  */
-function PatchMapping(target, name) {
-    Reflect.defineMetadata('$method', 'PATCH', target, name);
+function PatchMapping(path = null) {
+    return Mapping('patch', path);
 }
 exports.PatchMapping = PatchMapping;
 /**
- * 映射此方法为Action，只允许DELETE请求
+ * 映射此方法为Action，只允许delete请求
+ * @param path 映射到的路由，默认为action名称
  */
-function DeleteMapping(target, name) {
-    Reflect.defineMetadata('$method', 'DELETE', target, name);
+function DeleteMapping(path = null) {
+    return Mapping('delete', path);
 }
 exports.DeleteMapping = DeleteMapping;
 /**
- * 映射此方法为Action，只允许HEAD请求
+ * 映射此方法为Action，只允许head请求
+ * @param path 映射到的路由，默认为action名称
  */
-function HeadMapping(target, name) {
-    Reflect.defineMetadata('$method', 'HEAD', target, name);
+function HeadMapping(path = null) {
+    return Mapping('head', path);
 }
 exports.HeadMapping = HeadMapping;
 //# sourceMappingURL=Mapping.js.map

@@ -1,33 +1,41 @@
 /**
- * 映射此方法为Action
- * @param type method类型，默认为GET
+ * 映射此方法为Action，一个方法允许同时使用多个Mapping标记，用于支持多种method
+ * @param type method类型，默认为get
+ * @param path 映射到的路由，默认为/ + action名称
  */
-export declare function Mapping(type?: string): (target: any, name: string) => void;
+export declare function Mapping(type?: string, path?: string): (target: any, name: string) => void;
 /**
- * 映射此方法为Action，允许所有类型的method
+ * 映射此方法为Action，允许所有类型的method请求
+ * @param path 映射到的路由，默认为action名称
  */
-export declare function AllMapping(target: any, name: string): void;
+export declare function AllMapping(path?: string): (target: any, name: string) => void;
 /**
- * 映射此方法为Action，只允许GET请求
+ * 映射此方法为Action，只允许get请求
+ * @param path 映射到的路由，默认为action名称
  */
-export declare function GetMapping(target: any, name: string): void;
+export declare function GetMapping(path?: string): (target: any, name: string) => void;
 /**
- * 映射此方法为Action，只允许POST请求
+ * 映射此方法为Action，只允许post请求
+ * @param path 映射到的路由，默认为action名称
  */
-export declare function PostMapping(target: any, name: string): void;
+export declare function PostMapping(path?: string): (target: any, name: string) => void;
 /**
- * 映射此方法为Action，只允许PUT请求
+ * 映射此方法为Action，只允许put请求
+ * @param path 映射到的路由，默认为action名称
  */
-export declare function PutMapping(target: any, name: string): void;
+export declare function PutMapping(path?: string): (target: any, name: string) => void;
 /**
- * 映射此方法为Action，只允许PATCH请求
+ * 映射此方法为Action，只允许patch请求
+ * @param path 映射到的路由，默认为action名称
  */
-export declare function PatchMapping(target: any, name: string): void;
+export declare function PatchMapping(path?: string): (target: any, name: string) => void;
 /**
- * 映射此方法为Action，只允许DELETE请求
+ * 映射此方法为Action，只允许delete请求
+ * @param path 映射到的路由，默认为action名称
  */
-export declare function DeleteMapping(target: any, name: string): void;
+export declare function DeleteMapping(path?: string): (target: any, name: string) => void;
 /**
- * 映射此方法为Action，只允许HEAD请求
+ * 映射此方法为Action，只允许head请求
+ * @param path 映射到的路由，默认为action名称
  */
-export declare function HeadMapping(target: any, name: string): void;
+export declare function HeadMapping(path?: string): (target: any, name: string) => void;

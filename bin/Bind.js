@@ -6,32 +6,28 @@ function Bind(target, name, index, func) {
     Reflect.defineMetadata('$params', $params, target, name);
 }
 /**
- * 绑定Context
- * 只能在Controller中使用
+ * 绑定Koa.Context
  */
 function BindContext(target, name, index) {
     Bind(target, name, index, (ctx) => [ctx, false]);
 }
 exports.BindContext = BindContext;
 /**
- * 绑定http原生的request
- * 只能在Controller中使用
+ * 绑定Koa.Request
  */
 function BindRequest(target, name, index) {
-    Bind(target, name, index, (ctx) => [ctx.req, false]);
+    Bind(target, name, index, (ctx) => [ctx.request, false]);
 }
 exports.BindRequest = BindRequest;
 /**
- * 绑定http原生的response
- * 只能在Controller中使用
+ * 绑定Koa.Response
  */
 function BindResponse(target, name, index) {
-    Bind(target, name, index, (ctx) => [ctx.res, false]);
+    Bind(target, name, index, (ctx) => [ctx.response, false]);
 }
 exports.BindResponse = BindResponse;
 /**
  * 绑定url中的query参数
- * 只能在Controller中使用
  * @param key 参数名称
  */
 function BindQuery(key) {
@@ -42,29 +38,44 @@ function BindQuery(key) {
 exports.BindQuery = BindQuery;
 /**
  * 绑定全部的query参数为一个对象
- * 只能在Controller中使用
  */
 function BindQuerys(target, name, index) {
     Bind(target, name, index, (ctx) => [ctx.query, true]);
 }
 exports.BindQuerys = BindQuerys;
 /**
+ * 绑定url中的path参数
+ * @param key 参数名称
+ */
+function BindPath(key) {
+    return function (target, name, index) {
+        Bind(target, name, index, (ctx) => [ctx.params[key], true]);
+    };
+}
+exports.BindPath = BindPath;
+/**
+ * 绑定url中全部的的path参数为一个对象
+ * @param key 参数名称
+ */
+function BindPaths(target, name, index) {
+    Bind(target, name, index, (ctx) => [ctx.params, true]);
+}
+exports.BindPaths = BindPaths;
+/**
  * 绑定header中的参数
- * 只能在Controller中使用
  * @param key 参数名称
  */
 function BindHeader(key) {
     return function (target, name, index) {
-        Bind(target, name, index, (ctx) => [ctx.req.headers[key], true]);
+        Bind(target, name, index, (ctx) => [ctx.headers[key], true]);
     };
 }
 exports.BindHeader = BindHeader;
 /**
- * 只能在Controller中使用
  * 绑定请求体参数
  */
 function BindBody(target, name, index) {
-    Bind(target, name, index, (ctx) => [ctx.reqBody, true]);
+    Bind(target, name, index, (ctx) => [ctx.request.body, true]);
 }
 exports.BindBody = BindBody;
 //# sourceMappingURL=Bind.js.map

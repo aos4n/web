@@ -57,7 +57,7 @@ function NotNull(errorMesage = null) {
 }
 exports.NotNull = NotNull;
 /**
- * a != null && a.length > 0
+ * a != null && a.length > 0，注意：aos4n在转换类型时会自动trim字符串
  * @param errorMesage 错误消息，默认为：字段不能为空
  */
 function NotEmpty(errorMesage = null) {
@@ -71,21 +71,7 @@ function NotEmpty(errorMesage = null) {
 }
 exports.NotEmpty = NotEmpty;
 /**
- * a != null && a.trim().length > 0
- * @param errorMesage 错误消息，默认为：字段不能为空
- */
-function NotBlank(errorMesage = null) {
-    errorMesage = errorMesage || '字段不能为空';
-    return Func(a => {
-        if (a != null && a.trim().length > 0) {
-            return [true];
-        }
-        return [false, errorMesage];
-    });
-}
-exports.NotBlank = NotBlank;
-/**
- * 长度验证器，只能用于String、Array的验证，对于String，不会trim
+ * 长度验证器，只能用于String、Array的验证，注意：aos4n在转换类型时会自动trim字符串
  * 不会对null值进行验证，如需同时验证null，请添加@NotNull
  * @param min 最小长度
  * @param max 最大长度
@@ -120,7 +106,7 @@ function Length(min, max, errorMesage = null) {
 }
 exports.Length = Length;
 /**
- * 最小长度验证器，只能用于String、Array的验证
+ * 最小长度验证器，只能用于String、Array的验证，注意：aos4n在转换类型时会自动trim字符串
  * 不会对null值进行验证，如需同时验证null，请添加@NotNull
  * @param length 最小长度
  * @param errorMesage 错误消息，默认为：字段长度必须大于或等于${length}
@@ -130,7 +116,7 @@ function MinLength(length, errorMesage = null) {
 }
 exports.MinLength = MinLength;
 /**
- * 最大长度验证器，只能用于String、Array的验证
+ * 最大长度验证器，只能用于String、Array的验证，注意：aos4n在转换类型时会自动trim字符串
  * 不会对null值进行验证，如需同时验证null，请添加@NotNull
  * @param length 最大长度
  * @param errorMesage 错误消息，默认为：字段长度必须小于或等于${length}
@@ -256,7 +242,7 @@ function MaxDecimal(length, errorMesage = null) {
 }
 exports.MaxDecimal = MaxDecimal;
 /**
- * 正则表达式验证器，只能用于String的验证
+ * 正则表达式验证器，只能用于String的验证，注意：aos4n在转换类型时会自动trim字符串
  * 不会对null值进行验证，如需同时验证null，请添加@NotNull
  * @param pattern 正则规则
  * @param errorMesage 错误消息，默认为：字段格式不符合要求

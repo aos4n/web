@@ -13,17 +13,12 @@ export declare function Func(func: (arg0: any) => [boolean, string?]): (target: 
  */
 export declare function NotNull(errorMesage?: string): (target: any, name: string, index?: number) => void;
 /**
- * a != null && a.length > 0
+ * a != null && a.length > 0，注意：aos4n在转换类型时会自动trim字符串
  * @param errorMesage 错误消息，默认为：字段不能为空
  */
 export declare function NotEmpty(errorMesage?: string): (target: any, name: string, index?: number) => void;
 /**
- * a != null && a.trim().length > 0
- * @param errorMesage 错误消息，默认为：字段不能为空
- */
-export declare function NotBlank(errorMesage?: string): (target: any, name: string, index?: number) => void;
-/**
- * 长度验证器，只能用于String、Array的验证，对于String，不会trim
+ * 长度验证器，只能用于String、Array的验证，注意：aos4n在转换类型时会自动trim字符串
  * 不会对null值进行验证，如需同时验证null，请添加@NotNull
  * @param min 最小长度
  * @param max 最大长度
@@ -31,14 +26,14 @@ export declare function NotBlank(errorMesage?: string): (target: any, name: stri
  */
 export declare function Length(min: number, max: number, errorMesage?: string): (target: any, name: string, index?: number) => void;
 /**
- * 最小长度验证器，只能用于String、Array的验证
+ * 最小长度验证器，只能用于String、Array的验证，注意：aos4n在转换类型时会自动trim字符串
  * 不会对null值进行验证，如需同时验证null，请添加@NotNull
  * @param length 最小长度
  * @param errorMesage 错误消息，默认为：字段长度必须大于或等于${length}
  */
 export declare function MinLength(length: number, errorMesage?: string): (target: any, name: string, index?: number) => void;
 /**
- * 最大长度验证器，只能用于String、Array的验证
+ * 最大长度验证器，只能用于String、Array的验证，注意：aos4n在转换类型时会自动trim字符串
  * 不会对null值进行验证，如需同时验证null，请添加@NotNull
  * @param length 最大长度
  * @param errorMesage 错误消息，默认为：字段长度必须小于或等于${length}
@@ -89,7 +84,7 @@ export declare function MinDecimal(length: number, errorMesage?: string): (targe
  */
 export declare function MaxDecimal(length: number, errorMesage?: string): (target: any, name: string, index?: number) => void;
 /**
- * 正则表达式验证器，只能用于String的验证
+ * 正则表达式验证器，只能用于String的验证，注意：aos4n在转换类型时会自动trim字符串
  * 不会对null值进行验证，如需同时验证null，请添加@NotNull
  * @param pattern 正则规则
  * @param errorMesage 错误消息，默认为：字段格式不符合要求

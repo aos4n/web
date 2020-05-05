@@ -21,14 +21,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const aos4n_core_1 = require("aos4n-core");
 const ActionFilterContext_1 = require("./ActionFilterContext");
 const Component_1 = require("./Component");
-const Context_1 = require("./Context");
 const LazyResult_1 = require("./LazyResult");
 const NotFoundException_1 = require("./NotFoundException");
 const Options_1 = require("./Options");
-const Route_1 = require("./Route");
 const Utils_1 = require("./Utils");
-const formidable = require("formidable");
-const http = require("http");
+const Koa = require("koa");
+const koaBody = require("koa-body");
+const koaStatic = require("koa-static");
+const cors = require("koa2-cors");
+const path = require("path");
+const Router = require("koa-router");
 /**
  * web应用，这是一个启动StartUp组件，使用方法：getContainer().loadClass(Application)
  */
@@ -36,109 +38,91 @@ let Application = class Application {
     constructor(opts, container) {
         this.opts = opts;
         this.container = container;
+        this.app = new Koa();
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.routeMap = new Map();
             this.build();
-            this.server = http.createServer((req, res) => __awaiter(this, void 0, void 0, function* () {
-                var _a;
-                res.statusCode = 404;
-                let ctx = new Context_1.Context(req, res);
-                let url = req.url;
-                let urlArr = url.split('#')[0].split('?')[0].replace(/^\//, '').split('/');
-                let controllerPath = urlArr[0] || 'home';
-                let actionPath = urlArr[1] || 'index';
-                let method = req.method;
-                let route = (_a = this.routeMap.get(controllerPath)) === null || _a === void 0 ? void 0 : _a.get(actionPath);
-                if (route != null) {
-                    if (route.method == 'ALL' || route.method == method) {
-                        if (new Set(['POST', 'PUT', 'PATCH']).has(method)) {
-                            yield new Promise((resolve, reject) => {
-                                let form = new formidable.IncomingForm();
-                                form.parse(req, (err, fields, files) => {
-                                    if (err) {
-                                        reject(err);
-                                    }
-                                    ctx.reqBody = fields;
-                                    ctx.files = files;
-                                    resolve();
-                                });
-                            });
-                        }
-                        route.handler(ctx);
-                        return;
-                    }
-                }
-                let bl = yield this.notFoundExceptionHandler(ctx);
-                if (bl == false) {
-                    res.end('Not found');
-                }
-            }));
-            yield this.initControllers();
-            yield this.initFilters();
             let port = this.opts.port;
             if (process.env.aos4nWebPort) {
                 port = Number.parseInt(process.env.aos4nWebPort);
             }
-            this.server.listen(port);
+            this.server = this.app.listen(port);
+            yield this.initControllers();
+            yield this.initFilters();
             let endTime = Date.now();
             let nowStr = aos4n_core_1.Utils.formatDate(new Date(), 'yyyy-MM-dd HH:mm:ss');
             console.log(`[${nowStr}] Your application has started at ${port} in ${endTime - this.container.startTime}ms`);
         });
     }
     build() {
+        if (this.opts.enableStatic) {
+            let publicRootPath = path.join(aos4n_core_1.Utils.getAppRootPath(), 'public');
+            this.app.use(koaStatic(publicRootPath));
+        }
+        if (this.opts.enableCors) {
+            this.app.use(cors(this.opts.corsOptions));
+        }
+        this.app.use(koaBody(this.opts.koaBodyOptions));
         let controllerList = this.container.getComponentsByDecorator(Component_1.Controller);
         for (let controllerClass of controllerList) {
             this.checkControllerClass(controllerClass);
         }
+        this.app.use((ctx) => __awaiter(this, void 0, void 0, function* () {
+            yield this.notFoundExceptionHandler(ctx);
+        }));
     }
     checkControllerClass(_Class) {
-        let controllerPath = _Class.name.replace(/Controller$/i, '').toLowerCase();
-        if (this.routeMap.has(controllerPath)) {
-            return;
-        }
-        let map = new Map();
+        let controllerPath = Reflect.getMetadata('$path', _Class.prototype);
+        let router = new Router({ prefix: controllerPath });
         Object.getOwnPropertyNames(_Class.prototype).forEach(a => {
-            this.checkAndHandleActionName(a, _Class, map);
+            let routes = this.checkAndHandleActionName(a, _Class);
+            routes.forEach(b => {
+                if (typeof router[b.type] === 'function') {
+                    router[b.type](b.path, b.handler);
+                }
+            });
         });
-        if (map.size) {
-            this.routeMap.set(controllerPath, map);
-        }
+        this.app.use(router.routes());
     }
-    checkAndHandleActionName(actionName, _Class, map) {
+    checkAndHandleActionName(actionName, _Class) {
         let _prototype = _Class.prototype;
-        let $method = Reflect.getMetadata('$method', _prototype, actionName);
-        if (!$method) {
-            return;
+        let $routes = Reflect.getMetadata('$routes', _prototype, actionName);
+        if (!$routes) {
+            return [];
         }
-        let route = new Route_1.Route();
-        route.method = $method;
-        route.handler = (ctx) => __awaiter(this, void 0, void 0, function* () {
+        let handler = (ctx) => __awaiter(this, void 0, void 0, function* () {
             try {
                 yield this.handleContext(actionName, _Class, ctx);
             }
             catch (err) {
-                let [exceptionFilter, handlerName] = this.getExceptionFilterAndHandlerName(_prototype, actionName, err.constructor);
+                let [exceptionFilter, handlerName] = this.getExceptionFilterAndHandlerName(_prototype, actionName, err.constructor, ctx);
                 if (!handlerName) {
-                    ctx.res.statusCode = 500;
-                    ctx.res.end(err.stack || err);
+                    throw err;
                 }
-                try {
-                    yield this.handlerException(exceptionFilter, handlerName, err, ctx);
-                }
-                catch (err1) {
-                    ctx.res.statusCode = 500;
-                    ctx.res.end(err1.stack || err1);
-                }
+                yield this.handlerException(exceptionFilter, handlerName, err, ctx);
             }
         });
-        map.set(actionName.toLowerCase(), route);
+        return $routes.map(a => {
+            return {
+                type: a.type,
+                path: a.path,
+                handler
+            };
+        });
     }
-    getExceptionFilterAndHandlerName(_prototype, actionName, errConstructor) {
-        let filtersOnController = Reflect.getMetadata('$exceptionFilters', _prototype) || [];
+    getExceptionFilterAndHandlerName(_prototype, actionName, errConstructor, ctx) {
         let filtersOnAction = Reflect.getMetadata('$exceptionFilters', _prototype, actionName) || [];
-        let filters = this.container.getComponentsByDecorator(Component_1.GlobalExceptionFilter).concat(filtersOnController, filtersOnAction).reverse();
+        let filtersOnController = Reflect.getMetadata('$exceptionFilters', _prototype) || [];
+        let globalExceptionFilters = this.container.getComponentsByDecorator(Component_1.GlobalExceptionFilter)
+            .filter(a => {
+            let reg = Reflect.getMetadata('$match', a.prototype);
+            if (reg == null) {
+                return true;
+            }
+            return reg.test(ctx.url);
+        });
+        let filters = filtersOnAction.concat(filtersOnController, globalExceptionFilters);
         let [exceptionFilter, handlerName] = this.getExceptionHandlerName(errConstructor, filters);
         if (!handlerName) {
             [exceptionFilter, handlerName] = this.getExceptionHandlerName(Error, filters);
@@ -183,20 +167,20 @@ let Application = class Application {
                 Utils_1.Utils.validateModel(b);
             }
             let actionFilterContext = new ActionFilterContext_1.ActionFilterContext(ctx, params, $paramTypes, _Class, actionName);
-            let filterAndInstances = yield this.getFilterAndInstances(_prototype, actionName);
+            let filterAndInstances = yield this.getFilterAndInstances(_prototype, actionName, ctx);
             for (let [filter, filterInstance] of filterAndInstances) {
                 let handlerName = Reflect.getMetadata('$actionHandlerMap', filter.prototype).get(Component_1.DoBefore);
                 if (!handlerName) {
                     continue;
                 }
                 yield filterInstance[handlerName](actionFilterContext);
-                if (ctx.res.statusCode != 404) {
+                if (ctx.status != 404) {
                     break;
                 }
             }
-            if (ctx.res.statusCode == 404) {
+            if (ctx.status == 404) {
                 let body = yield instance[actionName](...params);
-                if (ctx.res.statusCode == 404) {
+                if (ctx.status == 404) {
                     if (body instanceof LazyResult_1.LazyResult) {
                         ctx.state.LazyResult = body;
                     }
@@ -205,7 +189,8 @@ let Application = class Application {
                     }
                 }
             }
-            for (let [filter, filterInstance] of filterAndInstances.reverse()) {
+            for (let i = filterAndInstances.length - 1; i >= 0; i--) {
+                let [filter, filterInstance] = filterAndInstances[i];
                 let handlerName = Reflect.getMetadata('$actionHandlerMap', filter.prototype).get(Component_1.DoAfter);
                 if (!handlerName) {
                     continue;
@@ -214,12 +199,19 @@ let Application = class Application {
             }
         });
     }
-    getFilterAndInstances(_prototype, actionName) {
+    getFilterAndInstances(_prototype, actionName, ctx) {
         return __awaiter(this, void 0, void 0, function* () {
-            let filtersOnController = Reflect.getMetadata('$actionFilters', _prototype) || [];
             let filtersOnAction = Reflect.getMetadata('$actionFilters', _prototype, actionName) || [];
-            let globalActionFilters = this.container.getComponentsByDecorator(Component_1.GlobalActionFilter);
-            let filters = globalActionFilters.concat(filtersOnController, filtersOnAction);
+            let filtersOnController = Reflect.getMetadata('$actionFilters', _prototype) || [];
+            let globalActionFilters = this.globalActionFilters
+                .filter(a => {
+                let reg = Reflect.getMetadata('$match', a.prototype);
+                if (reg == null) {
+                    return true;
+                }
+                return reg.test(ctx.url);
+            });
+            let filters = filtersOnAction.concat(filtersOnController, globalActionFilters);
             let filterAndInstances = [];
             for (let filter of filters) {
                 let filterInstance = yield this.container.getComponentInstanceFromFactory(filter);
@@ -253,7 +245,7 @@ let Application = class Application {
     }
     initFilters() {
         return __awaiter(this, void 0, void 0, function* () {
-            let globalActionFilters = this.container.getComponentsByDecorator(Component_1.GlobalActionFilter).sort((a, b) => Reflect.getMetadata('$order', b.prototype) - Reflect.getMetadata('$order', a.prototype));
+            let globalActionFilters = this.container.getComponentsByDecorator(Component_1.GlobalActionFilter);
             let globalExceptionFilters = this.container.getComponentsByDecorator(Component_1.GlobalExceptionFilter);
             for (let filter of globalActionFilters) {
                 yield this.container.getComponentInstanceFromFactory(filter);
@@ -261,17 +253,24 @@ let Application = class Application {
             for (let filter of globalExceptionFilters) {
                 yield this.container.getComponentInstanceFromFactory(filter);
             }
+            this.globalActionFilters = globalActionFilters.sort((a, b) => Reflect.getMetadata('$order', b.prototype) - Reflect.getMetadata('$order', a.prototype));
         });
     }
     notFoundExceptionHandler(ctx) {
         return __awaiter(this, void 0, void 0, function* () {
-            let globalExceptionFilters = this.container.getComponentsByDecorator(Component_1.GlobalExceptionFilter);
+            let globalExceptionFilters = this.container.getComponentsByDecorator(Component_1.GlobalExceptionFilter)
+                .filter(a => {
+                let reg = Reflect.getMetadata('$match', a.prototype);
+                if (reg == null) {
+                    return true;
+                }
+                return reg.test(ctx.url);
+            });
             let [exceptionFilter, handlerName] = this.getExceptionHandlerName(NotFoundException_1.NotFoundException, globalExceptionFilters);
             if (!handlerName) {
-                return false;
+                return;
             }
             yield this.handlerException(exceptionFilter, handlerName, new NotFoundException_1.NotFoundException(), ctx);
-            return true;
         });
     }
 };
@@ -281,18 +280,6 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], Application.prototype, "init", null);
-__decorate([
-    aos4n_core_1.InnerCachable({ keys: [[0, ''], [1, ''], [2, ''], [3, '']] }),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, Object]),
-    __metadata("design:returntype", Array)
-], Application.prototype, "getExceptionFilterAndHandlerName", null);
-__decorate([
-    aos4n_core_1.InnerCachable({ keys: [[0, ''], [1, ''], [2, '']] }),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", Promise)
-], Application.prototype, "getFilterAndInstances", null);
 Application = __decorate([
     aos4n_core_1.StartUp(),
     __metadata("design:paramtypes", [Options_1.Options, aos4n_core_1.DIContainer])
