@@ -351,7 +351,7 @@ aos4n-web的配置位于config.json的web节，具体字段说明如下：
 
 名称 | 类型 | 默认值 | 说明
 ------------ | ------------- | ------------- | -------------
-port | number | 3000 | 优先从createApp(port: number)获取参数
+port | number | 3000 | 如果指定了环境变量aos4nWebPort，则优先使用环境变量的值
 enableStatic | boolean | false | 是否开启静态内容支持，如果确定不需要静态内容支持，可以保持此选项关闭，可以提升性能，开启后，会使用public目录作为静态文件目录
 enableCors | boolean | false | 是否开启跨域
 corsOptions | CorsOptions | new CorsOptions() | 跨域选项，参考下面的CorsOptions
