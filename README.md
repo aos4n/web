@@ -121,7 +121,7 @@ index8(@BindHeader('ticket') ticket: string) {
 }
 ```
 ## @BindBody
-绑定header中的参数
+绑定请求体参数
 ```typescript
 @PostMapping()
 index9(@BindBody im: Index9IM) {
@@ -226,7 +226,7 @@ price: number
 @MinDecimal(2)
 price: number
 ```
-## @MinDecimal
+## @MaxDecimal
 最大小数位验证器，只能用于Number的验证
 
 不会对null值进行验证，如需同时验证null，请添加@NotNull
